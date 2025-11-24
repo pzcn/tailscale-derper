@@ -3,16 +3,13 @@ name: Build and Push Derper
 on:
   push:
     branches: [ "main" ]
-    # 当打 tag (如 v1.0) 时触发
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "main" ]
-  # 🔥 新增：允许你在 Actions 页面手动点击按钮触发构建
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  # 镜像名称默认为 <你的用户名>/<仓库名>
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
@@ -21,13 +18,15 @@ jobs:
     permissions:
       contents: read
       packages: write
-      # id-token: write # 如果移除了 Cosign 签名步骤，这行就不需要了
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 🔥 新增：配置 QEMU 以支持多架构构建 (比如同时构建 AMD64 和 ARM64)
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +%s)" >> $GITHUB_OUTPUT
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -47,7 +46,6 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # 配置标签规则：latest, 版本号, 以及 sha
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
@@ -64,5 +62,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            CACHEBUST=${{ steps.date.outputs.date }}
+          
           cache-from: type=gha
           cache-to: type=gha,mode=max
